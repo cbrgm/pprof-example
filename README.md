@@ -1,0 +1,384 @@
+# An Introduction To Profiling in Go
+
+👨‍💻 __Christian Bargmann (cbrgm)__
+
+🐘 @chrisbargmann@det.social
+
+📧 chris@cbrgm.net
+
+---
+
+# Agenda
+
+- 1. Introduction to Profiling
+	- What is profiling, how's it related to Observability?
+	- How to interpret profiling data?
+	- How to gather profiling data?
+
+- 2. Profiling in Go
+	- The built-in profiling tools in Go
+	- Profiling with Go's `testing` package
+	- Profiling with Go's `runtime/pprof` package
+	- Profiling with Go's `net/http/pprof` package
+
+- 3. Conclusion
+	- Recap of the key takeaways
+	- Additional resources for further learning
+
+---
+
+## What is profiling, how's it related to O11Y?
+
+The three (or four?) Pillars of Observability:
+
+- Logs
+- Metrics
+- Traces
+- (Profiles)
+
+---
+
+## What is profiling, how's it related to O11Y?
+
+Profiling shows the resource usage of an application
+
+- Profiling information serves **to aid program optimization**, and more specifically, **performance engineering**
+- Profiling can help reduce and understand workload **cost** (TCO), improve service **latency** and fixes application problem (like OOM)
+
+---
+
+## What is profiling, how's it related to O11Y?
+
+- Multiple types of profiling data are available
+	- Space (Memory): How much memory does my app use / allocate and where?
+	- Tiime (Complexity): The frequency and duration of function calls. Where's my app spending the most of CPU time?
+	- And much more ... threads, locks / synchronization, ...
+
+---
+
+## What is measured in a profile? Time on CPU
+
+A quick example:
+
+```go
+package main
+
+func main() {
+	// spent 3 cpu cycles
+	doALot()
+	doLittle()
+}
+
+func prepare() {
+	// spent 5 cpu cycles
+}
+
+func doALot() {
+	prepare()
+	// spent 20 cpu cycles
+}
+
+func doLittle() {
+	prepare()
+	// spent 5 cpu cycles
+}
+```
+
+---
+
+## How to visualize and interpret a profile?
+
+Each measurement gets recorded on a stack-trace level
+
+```go
+main() // 3
+main() -> doALot() -> prepare() // 5
+main() -> doALot() // 20
+main() -> doLittle() -> prepare() // 5
+main() -> doLittle() // 5
+```
+
+Reading the "Top" table (as found in `pprof`):
+
+```
+(pprof) top5
+Showing nodes accounting for 38, 100% of 38 total
+      flat  flat%   sum%        cum   cum%
+        20 52.63% 52.63%         25 65.79%  doALot
+        10 26.32% 78.95%         10 26.32%  prepare
+         5 13.16% 92.11%         10 26.32%  doLittle
+         3  7.89%   100%         38   100%  main
+```
+
+---
+
+## How to visualize and interpret a profile?
+
+Other common visualization are for example
+
+- Icycle graphs / Flame Graphs
+	- Whole width represents the total resources used (over the whole measurement duration)
+	- Ability to spot higher usage nodes
+- Flow Diagrams
+	- Spotting relationships between function calls
+	- Bigger nodes / fonts help to identify bottlenecks
+
+Example: [https://pprof.me/4719127/](https://pprof.me/4719127/)
+
+---
+
+## How to gather a profile?
+
+As today there are two main "directions" (at least I think so :D)
+- Instrumenting the code base
+	- Tooling and formats depending on each language ecosystem
+	- Access to more detailed runtime information
+- eBPF based collection
+	- No insights into runtime information
+	- Doesn't require instrumentation of applications
+
+Note: eBPF based collection will not be covered today
+
+---
+
+# 2. Profiling in Go
+
+---
+
+## The built-in profiling tools in Go
+
+Go comes with built-in profiling tools that make it easy to profile your applications.
+
+Using the `testing` pkg:
+- `go test -bench`: Runs benchmarks and reports their performance.
+- `go test -cpuprofile`: Collects CPU profiling data while running tests.
+- `go test -memprofile`: Collects memory profiling data while running tests.
+
+Gathering profiling data from a Go application:
+- `runtime/pprof`: Provides a programmatic interface for collecting profiling data on CPU and memory usage.
+
+Gathering profiling data via web:
+- `net/http/pprof`: Provides an HTTP endpoint for collecting profiling data on CPU, memory, and blocking behavior.
+
+---
+
+## Profiling Go applications with `testing.B`
+
+```go
+package main
+
+import (
+	"math/rand"
+	"time"
+)
+
+func GenerateRandomString(length int) string {
+	rand.Seed(time.Now().UnixNano())
+
+	const charset = "abcdefghijklmnopqrstuvwxyz" +
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return string(b)
+}
+```
+
+---
+
+## Profiling Go applications with `testing.B`
+
+- `testing/benchmark` subpackage benchmarks function and method performance.
+- Measure execution time and get average and variance with the benchmark package.
+- Define a benchmark function with *testing.B argument.
+- Results reported in console or file.
+
+```go
+package main
+
+import (
+	"testing"
+)
+
+// A benchmark to profile GenerateRandomString
+func BenchmarkGenerateRandomString(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		GenerateRandomString(10)
+	}
+}
+
+```
+
+---
+
+## Profiling Go applications with `testing.B`
+
+Demo, see `examples/01_go_benchmark_pprof`:
+
+```bash
+go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
+```
+
+once we have our profiling data `cpu.prof` and `mem.prof`, we can visualize it with `pprof`
+
+---
+
+## What is `pprof`?
+
+- `go tool pprof` is a command-line tool that helps analyze and optimize Go programs.
+- Profiling can be done on a running program or on a saved profile.
+- The reports can be displayed in various formats, including a graphical interface.
+- go tool pprof provides a rich set of commands for analyzing and visualizing profile data, such as `top`, `list`, `web`, and `png`.
+
+> pprof is a tool for visualization and analysis of profiling data. pprof reads a collection of profiling samples in profile.proto format and generates reports to visualize and help analyze the data. It can generate both text and graphical reports (through the use of the dot visualization package).
+
+---
+
+## Profiling Go applications with `runtime/pprof`
+
+```go
+
+import (
+	...
+	"runtime/pprof" // use Go's pprof library
+)
+
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
+func main() {
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		runtime.SetCPUProfileRate(500)
+		pprof.StartCPUProfile(f)
+
+		// flush remaining bytes to file when `main.go` returns
+		defer pprof.StopCPUProfile()
+	}
+
+	// Generate some random strings!
+	for i := 0; i < 100000; i++ {
+		fmt.Println(GenerateRandomString(10))
+	}
+}
+```
+
+---
+
+## Profiling Go applications with `runtime/pprof`
+
+Demo, see `examples/02_go_runtime_pprof`:
+
+```bash
+build main.go && ./main -cpuprofile=cpu.prof
+```
+
+```bash
+go tool pprof -http=localhost:8080 cpu.prof
+```
+
+---
+
+## Profiling Go applications with `net/http/pprof`
+
+Use Go's `net/http/pprof` package to expose profiling data via a web interface.
+
+---
+
+## Profiling Go applications with `net/http/pprof`
+
+```go
+import _ "net/http/pprof"
+
+go func() {
+	log.Println(http.ListenAndServe("localhost:6060", nil))
+}()
+```
+
+---
+
+## Profiling Go applications with `net/http/pprof`
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"net/http/pprof"
+)
+
+func main() {
+	// Register the pprof handlers with the default HTTP serve mux.
+	// The "/debug/pprof" URL path is a convention used by Go's HTTP runtime.
+	// These handlers will expose profiling data via the web interface.
+	http.HandleFunc("/debug/pprof/", pprof.Index)
+	http.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	http.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	http.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	// Start the web server and listen for incoming requests.
+	fmt.Println("Starting web server on http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+```
+
+---
+
+## Profiling Go applications with `net/http/pprof`
+
+Demo, see `examples/03_go_net_http_pprof`:
+
+Navigate to `localhost:6060/debug/pprof` to discover the profiles available, run
+
+```
+curl http://localhost:8080/debug/pprof/heap?seconds=30 > heap.out
+```
+
+or run
+
+```bash
+# cli mode
+go tool pprof -seconds=30 http://localhost:6060/debug/pprof/heap
+# web UI
+go tool pprof -seconds=30 -http=localhost:8080 http://localhost:6060/debug/pprof/heap
+```
+
+---
+
+## Conclusion
+
+- You learned what profiling is and how's it related to Observability
+- You learned how to interpret profiling data
+- You learned How to gather profiling data in general and in Go applications via
+	- `testing` package
+	- `runtime/pprof` package
+	- `net/http/pprof` package
+
+---
+
+## Resources
+
+- [go.dev/blog/pprof](https://go.dev/blog/pprof)
+- [google/pprof](https://github.com/google/pprof)
+- [Go Profiling and Optimization](https://docs.google.com/presentation/d/1n6bse0JifemG7yve0Bb0ZAC-IWhTQjCNAclblnn2ANY/edit#slide=id.g3a3e2af65_029)
+- Efficient Go by Bartek Plotka, https://www.bwplotka.dev/
+
+---
+
+# Thank you!
+
+👨‍💻 __Christian Bargmann (cbrgm)__
+
+🐘 @chrisbargmann@det.social
+
+📧 chris@cbrgm.net
