@@ -33,18 +33,18 @@
 
 # Agenda
 
-- 1. Introduction to Profiling
+- Introduction to Profiling
 	- What is profiling, how's it related to Observability?
 	- How to interpret profiling data?
 	- How to gather profiling data?
 
-- 2. Profiling in Go
+- Profiling in Go
 	- The built-in profiling tools in Go
 	- Profiling with Go's `testing` package
 	- Profiling with Go's `runtime/pprof` package
 	- Profiling with Go's `net/http/pprof` package
 
-- 3. Conclusion
+- Conclusion
 	- Recap of the key takeaways
 	- Additional resources for further learning
 
@@ -74,7 +74,7 @@ Profiling shows the resource usage of an application
 
 - Multiple types of profiling data are available
 	- Space (Memory): How much memory does my app use / allocate and where?
-	- Tiime (Complexity): The frequency and duration of function calls. Where's my app spending the most of CPU time?
+	- Time (Complexity): The frequency and duration of function calls. Where's my app spending the most of CPU time?
 	- And much more ... threads, locks / synchronization, ...
 
 ---
@@ -139,7 +139,7 @@ Showing nodes accounting for 38, 100% of 38 total
 
 Other common visualization are for example
 
-- Icycle graphs / Flame Graphs
+- Icicle graphs / Flame Graphs
 	- Whole width represents the total resources used (over the whole measurement duration)
 	- Ability to spot higher usage nodes
 - Flow Diagrams
